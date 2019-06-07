@@ -1,0 +1,563 @@
+<!DOCTYPE HTML>
+<html lang="en-US">
+<head>
+    <meta charset="UTF-8">
+    <title>mailPilot</title>
+    <script type="text/javascript"
+            src = "simpleGame.js"></script>
+    <script type="text/javascript">
+    
+	//variables
+	var scene;
+	var accl_y;
+	var accl_x;
+	var drag_x;
+	var drag_y;
+	
+	//safe to modify
+	var healthTotal = 4; //total health
+	var health=healthTotal; //current health (if you change this make sure its less or equal too healthTotal)
+	var gameDistance = 25; //how far to win
+    var spread = 6; //cloud spread
+	var EAGLE_SPEED = 10; //eagle speed
+	
+	//not safe to modify
+	var runOnce = 0; //for start of end sequence
+	var time = 0; //timer
+	var button_flag = 0; 
+	var endingSequence = 0; //make sure button is only made once
+	var gameEndInit = 0; //init game end
+    var currentLargeCloud = 0; //counter for cloud spawning
+	var currentSmallCloud = 0; //counter for cloud spawning
+	var currentGoose = 0; //counter for geese spawning
+	var distanceTraveled =0; //distance traveled so far
+	var CLOUD_SPEED = 20; //cloud speed
+	var NUM_GEESE =10; //number of geese in array
+    var NUM_CLOUDS = 30; //number clouds in array
+	
+	//sounds
+	var eagleScreamMp3;
+	var eagleScreamOgg;
+	var gooseMp3;
+	var gooseOgg;
+	var oofMp3;
+	var oofOgg;
+	
+	buildSounds = function(){
+        eagleScreamMp3 = new Sound("EagleScream.mp3");
+        eagleScreamOgg = new Sound("EagleScream.ogg");
+        
+        gooseMp3 = new Sound("goose.mp3");
+        gooseOgg = new Sound("goose.ogg");
+        
+        oofMp3 = new Sound("oof.mp3");
+        oofOgg = new Sound("oof.ogg");
+        
+    } // end buildSounds
+    function Cloud(){
+        tCloud = new Sprite(scene, "Cloud.png", 150, 100);
+		tCloud.setBoundAction(DIE);
+        tCloud.hide();
+        
+        tCloud.fire = function(){
+            this.show();
+            modifier = (Math.random() * spread) - (spread / 2);
+            this.setMoveAngle(0+modifier);
+			newX = Math.random() * scene.width;
+            this.setDY(-1*CLOUD_SPEED);
+            this.setPosition(newX, 600);            
+        } // end fire
+		tCloud.setSpeed = function(){
+			this.setDY(-1*CLOUD_SPEED);
+		}
+        return tCloud;
+    } // end cloud 
+	function Smallcloud(){
+        tCloud = new Sprite(scene, "Small_Cloud.png", 75, 50);
+		tCloud.setBoundAction(DIE);
+        tCloud.hide();
+        
+        tCloud.fire = function(){
+            this.show();
+            modifier = (Math.random() * spread) - (spread / 2);
+            this.setMoveAngle(0+modifier);
+			newX = Math.random() * scene.width;
+            this.setDY((-1*CLOUD_SPEED)/2);
+            this.setPosition(newX, 600);            
+        } // end fire
+		tCloud.setSpeed = function(){
+			this.setDY((-1*CLOUD_SPEED)/2);
+		}
+		tCloud.set = function(){
+			this.setDY((-1*CLOUD_SPEED)/2);
+		}
+        return tCloud;
+    } // end smallCloud 
+    
+    function makeClouds(){
+		smallclouds = new Array(NUM_CLOUDS);
+        for (i = 0; i < NUM_CLOUDS; i++){
+            smallclouds[i] = new Smallcloud();
+        } // end for
+        clouds = new Array(NUM_CLOUDS);
+        for (i = 0; i < NUM_CLOUDS; i++){
+            clouds[i] = new Cloud();
+        } // end for
+		geese = new Array(NUM_GEESE);
+        for (i = 0; i < NUM_GEESE; i++){
+            geese[i] = new Goose();
+        } // end for
+    } // end makeClouds and geese
+    function updateClouds(){
+		for (i = 0; i < NUM_CLOUDS; i++){
+			smallclouds[i].setSpeed();
+            smallclouds[i].update();
+        } // end for
+        for (i = 0; i < NUM_CLOUDS; i++){
+			clouds[i].setSpeed();
+            clouds[i].update();
+        } // end for	
+		for (i = 0; i < NUM_GEESE; i++){
+			geese[i].setSpeed();
+            geese[i].update();
+			geese[i].hitDetect();
+        } // end for	
+    } // end updateClouds and geese
+    function largeCloudTimer(){ //this function is modified version of checkKeys() taken from http://www.aharrisbooks.net/h5g/h5g_13/multiBullets.html
+        elapsedTime = timer1.getElapsedTime();
+			delay = Math.random()+.25;
+            if (elapsedTime > delay){
+                currentLargeCloud++;
+                if (currentLargeCloud >= NUM_CLOUDS){
+                    currentLargeCloud = 0;
+                } // end currentBall if
+                clouds[currentLargeCloud].fire();
+                timer1.reset();    
+            } // end delay if
+    } // end largeCloudTimer
+	function geeseTimer(){ //this function is modified version of checkKeys() taken from http://www.aharrisbooks.net/h5g/h5g_13/multiBullets.html
+        elapsedTime = timerG.getElapsedTime();
+			delay = Math.random()+3;
+            if (elapsedTime > delay){
+                currentGoose++;
+                if (currentGoose >= NUM_GEESE){
+                    currentGoose = 0;
+                } // end currentBall if
+                geese[currentGoose].spawn();
+                timerG.reset();    
+            } // end delay if
+    } // end geeseTimer
+	function smallCloudTimer(){ //this function is modified version of checkKeys() taken from http://www.aharrisbooks.net/h5g/h5g_13/multiBullets.html
+        elapsedTime = timer2.getElapsedTime();
+			delay = Math.random()+.25;
+            if (elapsedTime > delay){
+                currentSmallCloud++;
+                if (currentSmallCloud >= NUM_CLOUDS){
+                    currentSmallCloud = 0;
+                } // end currentBall if
+                smallclouds[currentSmallCloud].fire();
+                timer2.reset();    
+            } // end delay if
+    } // end smallCloudTimer
+	function Eagle(){
+		tEagle = new Sprite(scene, "eagle.png", 150, 100);
+		tEagle.setBoundAction(DIE);
+        tEagle.hide();
+		tEagle.spawn = function(){ //spawns eagle and decides which corner it will spawn in
+				this.show();
+				eagleScreamMp3.play();
+				eagleScreamOgg.play();
+				if(skydiver.x<400&&skydiver.y<300){ //top left
+					this.setDY(EAGLE_SPEED);
+					this.setDX(EAGLE_SPEED);
+					this.setPosition(0,0);
+				}
+				else if(skydiver.x>400&&skydiver.y<300){ //top right
+					this.setDY(EAGLE_SPEED);
+					this.setDX(-1*EAGLE_SPEED);
+					this.setPosition(800,0);
+				}
+				else if(skydiver.x<400&&skydiver.y>=300){ //bottom left
+					this.setDY(-1*EAGLE_SPEED);
+					this.setDX(EAGLE_SPEED);
+					this.setPosition(0,600);
+				}
+				else if(skydiver.x>400&&skydiver.y>=300){ //bottom right
+					this.setDY(-1*EAGLE_SPEED);
+					this.setDX(-1*EAGLE_SPEED);
+					this.setPosition(800,600);
+				}
+		}
+		tEagle.hitDetect = function(){ //detect hit with skydiver
+			if (this.collidesWith(skydiver)){
+				oofMp3.play();
+				oofOgg.play();
+				health--;
+				this.hide();
+			}
+		}
+		return tEagle;
+	} //Eagle end
+	function Goose(){
+		tGoose = new Sprite(scene, "goose.png", 150, 100);
+		tGoose.setBoundAction(DIE);
+        tGoose.hide();
+        
+        tGoose.spawn = function(){ //spawn goose
+            this.show();
+			gooseMp3.play();
+			gooseOgg.play();
+			x = skydiver.x;
+			this.setPosition(x,550);
+			this.setDY(-1*CLOUD_SPEED);
+			this.setDX(0);
+            //this.setDY((-1*_SPEED)/2);           
+        } // end fire
+		tGoose.hitDetect = function(){ //detect hit with skydiver
+			if (this.collidesWith(skydiver)){
+				oofMp3.play();
+				oofOgg.play();
+				health--;
+				this.hide();
+			}		
+		}
+		tGoose.setSpeed = function(){
+			this.setDY(-1*CLOUD_SPEED*0.9);
+		}
+		return tGoose;
+	}// end Goose
+	function Ground(){
+		tGround = new Sprite(scene, "ground.png", 800, 200);
+        tGround.setDX(0);
+        tGround.setDY(0);
+		tGround.setBoundAction(CONTINUE);
+        tGround.setPosition(400, 700);
+        
+        tGround.startNow = function(){
+			tGround.setDY(-3);
+		}
+        tGround.stopCheck = function(){
+            //seamless ocean gif repeats
+            if (this.y < 500){
+                tGround.setDY(0);
+            } // end if
+        } // end checkBounds
+        return tGround;
+	}
+	function Icon(){
+		tIcon = new Sprite(scene, "Skydiver.png", 38, 25);
+		tIcon.setSpeed(0);
+		tIcon.setPosition(775,0);
+		tIcon.move = function(){
+			y=600*(distanceTraveled/gameDistance);
+			x=this.x;
+			this.setPosition(x,y);		
+		}
+		return tIcon;
+	}
+	function Heart(){
+		tHeart = new Sprite(scene, "heart.png", 20,20);
+		tHeart.setSpeed(0);
+		tHeart.setPosition(15,15);
+		
+		return tHeart;
+	}
+	function makeHealth(){
+		healthBar = new Array(healthTotal);
+		for(i=0; i<healthTotal; i++){
+			healthBar[i]=new Heart();
+			healthBar[i].setPosition(20*(i+1),30); //spacing for hearts
+			healthBar[i].setSpeed(0);
+		}
+	}
+	function healthUpdate(){
+		for(i=0; i<health;i++){
+			healthBar[i].update();
+		}
+	}
+	function Skydiver(){
+		tSkydiver = new Sprite(scene, "Skydiver.png", 75, 50);
+		tSkydiver.setSpeed(0);
+		tSkydiver.setPosition(400,300);
+		tSkydiver.imgNoDive = "sky1.png";
+        tSkydiver.imgMidDive = "sky2.png";
+		tSkydiver.imgAlmostFullDive = "sky3.png";
+        tSkydiver.imgFullDive = "sky4.png";
+		tSkydiver.setBoundAction(WRAP);
+		tSkydiver.setAnimation = function(){
+			if(!gameEndInit){
+				if(CLOUD_SPEED<=15){
+				this.setImage(this.imgNoDive);
+				this.height = 50;
+				}
+				if(CLOUD_SPEED>15&&CLOUD_SPEED<=25){
+					this.setImage(this.imgMidDive);
+					this.height = 75;
+				}
+				if(CLOUD_SPEED>25&&CLOUD_SPEED<35){
+					this.setImage(this.imgAlmostFullDive);
+					this.height = 100;
+				}
+				if(CLOUD_SPEED>=35){
+					this.setImage(this.imgFullDive);
+					this.height = 125;
+				}
+			}
+			else{
+					if(timerA.getElapsedTime()<1.5&&endingSequence==0){
+						endingSequence++;
+						this.setImage("open1.png");
+						this.height = 250;
+						this.width = 75;
+						this.setPosition(this.x,this.y-75);
+					}
+					if(timerA.getElapsedTime()>=1.5&&timerA.getElapsedTime()<4&&endingSequence==1){
+						endingSequence++;
+						this.setImage("open2.png");
+						this.height = 300;
+						this.width = 130;
+						this.setPosition(this.x,this.y-40);
+					}
+					if(timerA.getElapsedTime()>=4&&endingSequence==2){
+						endingSequence++;
+						this.setImage("front3.png");
+						this.height = 90;
+						this.width = 75;
+						this.setPosition(this.x,this.y+60);
+					}
+			}
+			
+		}
+		tSkydiver.endSequence = function(){
+			this.setSpeed(0);
+			if(tSkydiver.x<400){
+				y=tSkydiver.y;
+				x=tSkydiver.x;
+				x+=5;
+				tSkydiver.setPosition(x, y);
+			}
+			if(tSkydiver.x>400){
+				y=tSkydiver.y;
+				x=tSkydiver.x;
+				x-=5;
+				tSkydiver.setPosition(x, y);
+			}
+			if(tSkydiver.y<500){
+				y=tSkydiver.y;
+				x=tSkydiver.x;
+				y+=5;
+				tSkydiver.setPosition(x, y);
+			}
+			if(tSkydiver.y>500){
+				y=tSkydiver.y;
+				x=tSkydiver.x;
+				y-=5;
+				tSkydiver.setPosition(x, y);
+			}
+		}
+		tSkydiver.checkKeys = function(){
+			dy_drag = 0;
+			dx_drag = 0;
+			if (keysDown[K_DOWN]){
+						dy_drag=1;
+						if(this.dy<=0){
+							this.setDY(5);
+						}else{
+							dy=this.dy;
+							this.setDY(dy*1.10);
+						}
+				if(CLOUD_SPEED<40){
+					CLOUD_SPEED++;
+				}  
+            } // end if
+            if (keysDown[K_UP]){
+						dy_drag=1;
+						if(this.dy>=0){
+							this.setDY(-5);
+						}else{
+							dy=this.dy;
+							this.setDY(dy*1.10);
+						}
+						
+				if(CLOUD_SPEED>10){
+					CLOUD_SPEED--;
+				} 
+            } // end if
+            if (keysDown[K_LEFT]){
+						dx_drag=1;
+						if(this.dx>=0){
+							this.setDX(-5);
+						}else{
+							dx=this.dx;
+							this.setDX(dx*1.10);
+						}
+						
+            } // end if
+            
+            if (keysDown[K_RIGHT]){
+						dx_drag=1;
+						if(this.dx<=0){
+							this.setDX(5);
+						}else{
+							dx=this.dx;
+							this.setDX(dx*1.10);
+						}
+						
+            } // end if
+			if(!dy_drag){
+				dy=this.dy;
+				this.setDY(dy*0.95);
+			}
+			if(!dx_drag){
+				dx=this.dx;
+				this.setDX(dx*0.95);
+			}
+		}
+		return tSkydiver;
+	}
+	function eagleTimer(){
+		elapsedTime = timerE.getElapsedTime();
+		if(elapsedTime>3){
+			eagle.spawn();
+			timerE.reset();
+		}
+	}
+	function showStats(){
+            //displays stats
+            output = "MPH: " + (parseInt(125*(CLOUD_SPEED/40))+100) + "<br />"
+			+ "TIME: " + time + "<br />";
+            stats.innerHTML = output;
+    } // end showStats
+	function menutext(){
+            //displays stats
+			if(health<=0){
+				output = "Better luck text time." + "<br />"
+				+ "Press the restart button to try again." + "<br />";
+			}
+			else{
+				output = "You made it down in " + time + " seconds!!" + "<br />"
+				+ "Press the restart button to try again." + "<br />";
+			}
+            menuText.innerHTML = output;
+    } // end showStats
+	function restartButton(){
+		tRestart = new GameButton("restart");
+		tRestart.setPosition(400,300);
+		tRestart.setSize(60,20);
+		
+		return tRestart;
+	}
+	function gameSpeed(){
+		distanceTraveled += CLOUD_SPEED/20;
+	}
+	function Menu(){
+		tMenu = new Sprite(scene, "menu.png", 400, 400);
+		tMenu.setPosition(400,300);
+		tMenu.setSpeed(0);
+		
+		return tMenu;
+	}
+    function init(){
+        scene = new Scene();
+        scene.hideCursor();
+        scene.setBG("lightblue");
+        if (scene.touchable){
+            joy = new Joy();
+        } // end if
+        timer1 = new Timer();
+		timer2 = new Timer();
+		timerG = new Timer();
+		timerE = new Timer();
+		timerA = new Timer();
+		gameTimer = new Timer();
+        makeClouds();
+		skydiver = new Skydiver();
+		eagle = new Eagle();
+		makeHealth();
+		ground = new Ground();
+		icon = new Icon();
+		buildSounds();
+        scene.start();
+    }  // end init
+    function update(){
+		if(health<=0||timerA.getElapsedTime()>5){
+			if(!button_flag){
+				menu = new Menu();
+				restart = new restartButton();
+				button_flag=1;
+				scene.showCursor();
+			}
+			if(restart.isClicked()){
+				location.reload();
+			}
+			menu.update();
+			menutext();
+			
+		}
+		else{
+        scene.clear();
+		ground.update();
+		if(!gameEndInit){
+			smallCloudTimer();
+			largeCloudTimer();
+			geeseTimer();
+			skydiver.checkKeys();
+			eagleTimer();
+			timerA.reset();
+		}
+		else{			
+			if(!runOnce){
+				ground.startNow();
+				timerA.reset();
+				runOnce=1;
+			}
+			ground.stopCheck();
+			skydiver.endSequence();
+			//ground.start();
+		}
+        updateClouds();
+		skydiver.setAnimation();
+        skydiver.update();
+		if(gameTimer.getElapsedTime()>1){
+			if(!gameEndInit){
+				time++;
+				gameSpeed();
+			}
+			gameTimer.reset();
+		}
+		if(distanceTraveled>gameDistance){ //check if your about to hit ground
+			gameEndInit = 1;
+		}
+		eagle.update();
+		eagle.hitDetect();
+		icon.move();
+		icon.update();
+		healthUpdate();
+		showStats();
+		}
+    } // end update();
+    </script>
+    <style type="text/css">
+        #stats {
+            position: absolute;
+            font-family: monospace;
+            left: 30px;
+            top: 70px;
+            z-index: 999;
+            color: black;
+        }
+		#menuText {
+            position: absolute;
+            font-family: monospace;
+            left: 300px;
+            top: 200px;
+            z-index: 999;
+            color: black;
+        }
+    </style>
+</head>
+<body onload = "init()">
+    <div id = "stats"></div>
+	<div id = "menuText"></div>
+</body>
+</html>
